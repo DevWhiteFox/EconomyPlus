@@ -3,24 +3,28 @@ package me.itswagpvp.economyplus;
 import com.gmail.filoghost.holographicdisplays.api.Hologram;
 import com.gmail.filoghost.holographicdisplays.api.HologramsAPI;
 import me.itswagpvp.economyplus.bank.commands.Bank;
-import me.itswagpvp.economyplus.bank.menu.MenuListener;
+import me.itswagpvp.economyplus.bank.other.InterestsManager;
 import me.itswagpvp.economyplus.commands.*;
-import me.itswagpvp.economyplus.dbStorage.mysql.MySQL;
-import me.itswagpvp.economyplus.dbStorage.sqlite.SQLite;
+import me.itswagpvp.economyplus.database.cache.CacheManager;
+import me.itswagpvp.economyplus.database.misc.DatabaseType;
+import me.itswagpvp.economyplus.database.misc.StorageMode;
+import me.itswagpvp.economyplus.database.mysql.MySQL;
+import me.itswagpvp.economyplus.database.sqlite.SQLite;
 import me.itswagpvp.economyplus.events.Join;
-import me.itswagpvp.economyplus.hooks.HolographicDisplays;
+import me.itswagpvp.economyplus.hooks.PlaceholderLoader;
+import me.itswagpvp.economyplus.hooks.holograms.HolographicDisplays;
 import me.itswagpvp.economyplus.messages.DefaultFiles;
 import me.itswagpvp.economyplus.messages.MessageUtils;
 import me.itswagpvp.economyplus.messages.MessagesFile;
 import me.itswagpvp.economyplus.metrics.bStats;
 import me.itswagpvp.economyplus.misc.*;
 import me.itswagpvp.economyplus.vault.VEconomy;
-import me.itswagpvp.economyplus.vault.VHook;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -30,44 +34,41 @@ import java.sql.SQLException;
 public final class EconomyPlus extends JavaPlugin {
 
     // Database
-    private static DatabaseType dbType = DatabaseType.Undefined;
+    private static DatabaseType dbType = DatabaseType.UNDEFINED;
+    private static StorageMode storageMode = StorageMode.UNDEFINED;
 
-    // Messages
-    public static MessagesFile messagesType = MessagesFile.Undefined;
-
-    // (holograms.yml)
-    private File hologramFile;
-    private FileConfiguration hologramConfig;
-
-    // FileConfig (data.yml)
+    // YAML Database (data.yml)
     private File ymlFile;
     private FileConfiguration ymlConfig;
 
-    // Economy
-    public static VEconomy veco;
-    public static VHook hook;
+    // Messages
+    public static MessagesFile messagesType = MessagesFile.UNDEFINED;
 
     // BalTop
-    public static Data data;
+    public static BalTopManager balTopManager;
 
     // Plugin instance
     public static EconomyPlus plugin;
+
+    // Debug mode
+    public static boolean debugMode;
 
     Updater updater;
 
     @Override
     public void onEnable() {
         // Plugin startup logic
+        long before = System.currentTimeMillis();
 
         plugin = this;
 
-        long before = System.currentTimeMillis();
-
         saveDefaultConfig();
+
+        if (getConfig().getBoolean("Debug-Mode", false)) debugMode = true;
 
         plugin.getConfig().options().copyDefaults(true);
 
-        createHologramConfig();
+        new StorageManager().createStorageConfig();
 
         if (!setupEconomy()) {
             Bukkit.getConsoleSender().sendMessage("§8+------------------------------------+");
@@ -76,7 +77,7 @@ public final class EconomyPlus extends JavaPlugin {
             Bukkit.getConsoleSender().sendMessage("§8");
             Bukkit.getConsoleSender().sendMessage("§f-> §cCan't find Vault!");
             Bukkit.getConsoleSender().sendMessage("§8+------------------------------------+");
-            getServer().getPluginManager().disablePlugin(this);
+            getServer().getPluginManager().disablePlugin(plugin);
             return;
         }
 
@@ -85,7 +86,7 @@ public final class EconomyPlus extends JavaPlugin {
         Bukkit.getConsoleSender().sendMessage("              §aEnabling");
         Bukkit.getConsoleSender().sendMessage("§8");
 
-        Bukkit.getConsoleSender().sendMessage("§f-> §cLoading core!");
+        Bukkit.getConsoleSender().sendMessage("§f-> §cLoading core:");
 
         loadDatabase();
 
@@ -98,28 +99,25 @@ public final class EconomyPlus extends JavaPlugin {
         loadMessages();
 
         Bukkit.getConsoleSender().sendMessage("§8");
-        Bukkit.getConsoleSender().sendMessage("§f-> §cLoading hooks!");
+        Bukkit.getConsoleSender().sendMessage("§f-> §cLoading hooks:");
 
         loadMetrics();
 
         loadHolograms();
 
-        Bukkit.getConsoleSender().sendMessage("§f");
-        Bukkit.getConsoleSender().sendMessage("§f-> §cLoading placeholders:");
-
         loadPlaceholders();
 
         updater = Updater.getInstance(this);
 
-        if (plugin.getDescription().getVersion() != plugin.getConfig().getString("Version")) {
-            Bukkit.getConsoleSender().sendMessage("§f-> §eRemind to update the config.yml! Your config version is outdated!");
+        if (!plugin.getDescription().getVersion().equals(plugin.getConfig().getString("Version"))) {
+            Bukkit.getConsoleSender().sendMessage("§f-> §eRemind to update config.yml! Your config version is outdated!");
         }
 
         Bukkit.getConsoleSender().sendMessage("§8+---------------[§a " + (System.currentTimeMillis() - before) + "ms §8]-------------+");
 
-        if (dbType == DatabaseType.Undefined) {
+        if (dbType == DatabaseType.UNDEFINED) {
             Bukkit.getConsoleSender().sendMessage("§c[EconomyPlus] Unable to start the plugin without a valid database option!");
-            getServer().getPluginManager().disablePlugin(this);
+            getServer().getPluginManager().disablePlugin(plugin);
         }
 
     }
@@ -132,14 +130,14 @@ public final class EconomyPlus extends JavaPlugin {
         Bukkit.getConsoleSender().sendMessage("             §dEconomy§5Plus");
         Bukkit.getConsoleSender().sendMessage("              §cDisabling");
         Bukkit.getConsoleSender().sendMessage("");
-        Bukkit.getConsoleSender().sendMessage("§f-> §cUnhooking from Vault");
-
-        hook.offHook();
+        Bukkit.getConsoleSender().sendMessage("§f-> §cStopping threads...");
+        ThreadsUtils.stopAllThreads();
 
         Bukkit.getConsoleSender().sendMessage("§f-> §cClosing database connection");
 
         try {
             dbType.close();
+            Bukkit.getScheduler().cancelTasks(plugin);
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
@@ -148,23 +146,37 @@ public final class EconomyPlus extends JavaPlugin {
 
     }
 
+    // Hook into VaultEconomy
     private void loadEconomy() {
-        try {
-            veco = new VEconomy(plugin);
-            hook = new VHook();
 
-            hook.onHook();
-        } catch (Exception e) {
+        try {
+            Class.forName("net.milkbowl.vault.economy.Economy");
+            getServer().getServicesManager().register(net.milkbowl.vault.economy.Economy.class, new VEconomy(plugin), plugin, ServicePriority.Normal);
+        } catch (ClassNotFoundException e) {
             Bukkit.getConsoleSender().sendMessage("   - §fVault: §CError");
-            e.printStackTrace();
+            Bukkit.getConsoleSender().sendMessage(e.getMessage());
             return;
         }
 
         Bukkit.getConsoleSender().sendMessage("   - §fVault: §6Hooked");
+
     }
 
-    // Loads the SQLite database
     private void loadDatabase() {
+
+        // Select how the plugin needs to storage the player datas
+        if (getConfig().getString("Database.Mode", "NICKNAME").equalsIgnoreCase("UUID")) {
+            storageMode = StorageMode.UUID;
+            Bukkit.getConsoleSender().sendMessage("   - §fStorage-Mode: §aUUID");
+        } else if (getConfig().getString("Database.Mode", "NICKNAME").equalsIgnoreCase("NICKNAME")) {
+            storageMode = StorageMode.NICKNAME;
+            Bukkit.getConsoleSender().sendMessage("   - §fStorage-Mode: §aNICKNAME");
+        } else {
+            storageMode = StorageMode.UUID;
+            Bukkit.getConsoleSender().sendMessage("   - §fStorage-Mode: §aUUID");
+        }
+
+        // Detect and set the type of database
         if (getConfig().getString("Database.Type").equalsIgnoreCase("MySQL")) {
             try {
                 new MySQL().connect();
@@ -182,7 +194,7 @@ public final class EconomyPlus extends JavaPlugin {
                 new SQLite().load();
             } catch (Exception e) {
                 Bukkit.getConsoleSender().sendMessage("   - §fDatabase: §cError (SQLite)");
-                Bukkit.getConsoleSender().sendMessage(e.getMessage());
+                e.printStackTrace();
                 return;
             }
 
@@ -202,45 +214,59 @@ public final class EconomyPlus extends JavaPlugin {
         } else {
             String type = plugin.getConfig().getString("Database.Type");
             Bukkit.getConsoleSender().sendMessage("   - §fDatabase: §cInvalid database type: " + type);
-            dbType = DatabaseType.Undefined;
+            dbType = DatabaseType.UNDEFINED;
         }
+
+        // Load the cache for the database - Vault API
+        if (dbType == DatabaseType.MySQL) {
+            new CacheManager().cacheOnlineDatabase();
+            long period = plugin.getConfig().getLong("Database.Cache.MySQL", 10) * 20;
+            Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> new CacheManager().cacheOnlineDatabase(), 120, period);
+        } else {
+            new CacheManager().cacheLocalDatabase();
+            new CacheManager().startAutoSave();
+        }
+
+        Bukkit.getConsoleSender().sendMessage("     - §fCaching accounts...");
+
+        new InterestsManager().startBankInterests();
     }
 
     private void loadEvents() {
         try {
             Bukkit.getPluginManager().registerEvents(new Join(), this);
-            Bukkit.getPluginManager().registerEvents(new Updater(this), this);
-            Bukkit.getPluginManager().registerEvents(new MenuListener(), this);
         } catch (Exception e) {
-            Bukkit.getConsoleSender().sendMessage("   - §fEvents: §cError");
+            Bukkit.getConsoleSender().sendMessage("   - §cError loading listeners");
             Bukkit.getConsoleSender().sendMessage(e.getMessage());
-            return;
         }
-
-        Bukkit.getConsoleSender().sendMessage("   - §fEvents: §aLoaded");
     }
 
     private void loadCommands() {
+
         try {
 
             getCommand("baltop").setExecutor(new BalTop());
-            getCommand("baltop").setTabCompleter(new ConstructorTabCompleter());
+            getCommand("baltop").setTabCompleter(new TabCompleterLoader());
 
             getCommand("economyplus").setExecutor(new Main());
-            getCommand("economyplus").setTabCompleter(new ConstructorTabCompleter());
+            getCommand("economyplus").setTabCompleter(new TabCompleterLoader());
 
             getCommand("bal").setExecutor(new Bal());
-            getCommand("bal").setTabCompleter(new ConstructorTabCompleter());
+            getCommand("bal").setTabCompleter(new TabCompleterLoader());
 
             getCommand("pay").setExecutor(new Pay());
-            getCommand("pay").setTabCompleter(new ConstructorTabCompleter());
+            getCommand("pay").setTabCompleter(new TabCompleterLoader());
 
             getCommand("eco").setExecutor(new Eco());
-            getCommand("eco").setTabCompleter(new ConstructorTabCompleter());
+            getCommand("eco").setTabCompleter(new TabCompleterLoader());
 
-            getCommand("bank").setExecutor(new Bank());
-            getCommand("bank").setTabCompleter(new ConstructorTabCompleter());
+            if (plugin.getConfig().getBoolean("Bank.Enabled")) {
+                getCommand("bank").setExecutor(new Bank());
+                getCommand("bank").setTabCompleter(new TabCompleterLoader());
+            }
 
+            getCommand("paytoggle").setExecutor(new PayToggle());
+            getCommand("paytoggle").setTabCompleter(new TabCompleterLoader());
         } catch (Exception e) {
             Bukkit.getConsoleSender().sendMessage("   - §fCommands: §cError");
             Bukkit.getConsoleSender().sendMessage(e.getMessage());
@@ -252,44 +278,30 @@ public final class EconomyPlus extends JavaPlugin {
     // Loads the bStats metrics
     private void loadMetrics() {
 
-        if (!getConfig().getBoolean("Metrics")) {
-            return;
-        }
+        if (!getConfig().getBoolean("Metrics")) return;
 
         try {
             new bStats(this, 11565);
         } catch (Exception e) {
-            Bukkit.getConsoleSender().sendMessage("   - §fbStats: §cError");
+            Bukkit.getConsoleSender().sendMessage("   - §cError loading bStats");
             Bukkit.getConsoleSender().sendMessage(e.getMessage());
-            return;
         }
-        Bukkit.getConsoleSender().sendMessage("   - §fbStats: §aLoaded");
     }
 
     private void loadHolograms() {
 
-        if (!plugin.getConfig().getBoolean("Hooks.HolographicDisplays")) {
-            return;
-        }
+        if (!plugin.getConfig().getBoolean("Hooks.HolographicDisplays")) return;
 
         boolean useHolographicDisplays = Bukkit.getPluginManager().isPluginEnabled("HolographicDisplays");
 
         if (useHolographicDisplays) {
 
-            Bukkit.getConsoleSender().sendMessage("   - §fHolographicDisplays: §aFound");
+            Bukkit.getConsoleSender().sendMessage("   - HolographicDisplays: §aDone!");
 
-            if (getHologramConfig().getString("Hologram.BalTop.World") != null) {
+            if (new StorageManager().getStorageConfig().getString("Hologram.BalTop.World") != null) {
 
-                long refreshRate = plugin.getConfig().getLong("Baltop.Hologram.Refresh-Rate", 60) * 20L;
-
-                Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
-
-                    for (Hologram hologram : HologramsAPI.getHolograms(plugin)) {
-                        hologram.delete();
-                    }
-
-                    new HolographicDisplays().refreshHologram();
-                }, 0L, refreshRate);
+                new HolographicDisplays().createHologram();
+                
             }
 
         } else {
@@ -298,19 +310,16 @@ public final class EconomyPlus extends JavaPlugin {
 
     }
 
-    // Loads the placeholder for PlaceholderAPI or MVdWPlaceholderAPI
+    // Loads the placeholder for PlaceholderAPI
     private void loadPlaceholders() {
 
-        // MVdWPlaceholderAPI
-        new Utils().loadMVdWPlaceholderAPI();
-
         // PlaceholderAPI
-        new Utils().loadPlaceholderAPI();
+        new PlaceholderLoader().loadPlaceholderAPI();
         Bukkit.getConsoleSender().sendMessage("§f");
     }
 
     private void loadMessages() {
-        String messages = plugin.getConfig().getString("Language");
+        String messages = plugin.getConfig().getString("Language", "EN");
         try {
 
             messagesType = MessagesFile.valueOf(messages);
@@ -326,13 +335,13 @@ public final class EconomyPlus extends JavaPlugin {
 
     }
 
-    public Data getData() {
+    public BalTopManager getBalTopManager() {
 
-        if (data == null) {
-            data = new Data();
-            new Data();
+        if (balTopManager == null) {
+            balTopManager = new BalTopManager();
+            new BalTopManager();
         }
-        return data;
+        return balTopManager;
     }
 
     // Controls if there's Vault installed
@@ -340,45 +349,43 @@ public final class EconomyPlus extends JavaPlugin {
         return getServer().getPluginManager().isPluginEnabled("Vault");
     }
 
+    // Get the string from /messages/file.yml and format it with color codes (hex for 1.16+)
     public String getMessage(String path) {
         if (!new DefaultFiles().getMessagesFile().isString(path)) {
             return path;
         }
 
-        return ChatColor.translateAlternateColorCodes('&', new DefaultFiles().getMessagesFile().getString(path));
-    }
+        String rawMessage = new DefaultFiles().getMessagesFile().getString(path);
 
-    public FileConfiguration getHologramConfig() {
-        return this.hologramConfig;
-    }
+        assert rawMessage != null;
 
-    public void saveHologramConfig() {
-        try {
-            hologramConfig.save(hologramFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void createHologramConfig() {
-        hologramFile = new File(plugin.getDataFolder(), "holograms.yml");
-        if (!hologramFile.exists()) {
-            hologramFile.getParentFile().mkdirs();
-            plugin.saveResource("holograms.yml", false);
+        //TODO Keep this only for implementing #isMessageEnabled
+        if (rawMessage.equalsIgnoreCase("none")) {
+            return "";
         }
 
-        hologramConfig = new YamlConfiguration();
-        try {
-            hologramConfig.load(hologramFile);
-        } catch (IOException | InvalidConfigurationException e) {
-            e.printStackTrace();
+        if (Utils.supportHexColors()) {
+            String hexMessage = Utils.hexColor(rawMessage);
+            return ChatColor.translateAlternateColorCodes('&', hexMessage);
         }
+
+        return ChatColor.translateAlternateColorCodes('&', rawMessage);
     }
 
+    public boolean isMessageEnabled(String path) {
+        if (!new DefaultFiles().getMessagesFile().isString(path)) {
+            return false;
+        }
+
+        return !new DefaultFiles().getMessagesFile().getString(path).equalsIgnoreCase("none");
+    }
+
+    // Returns data.yml if DatabaseType is YAML
     public FileConfiguration getYMLData() {
         return this.ymlConfig;
     }
 
+    // Safe-save data.yml
     public void saveYMLConfig() {
         try {
             ymlConfig.save(ymlFile);
@@ -387,16 +394,18 @@ public final class EconomyPlus extends JavaPlugin {
         }
     }
 
+    // Create data.yml if DatabaseType is YAML
     public void createYMLStorage() {
         ymlFile = new File(plugin.getDataFolder(), "data.yml");
         if (!ymlFile.exists()) {
-            hologramFile.getParentFile().mkdirs();
+            ymlFile.getParentFile().mkdirs();
             plugin.saveResource("data.yml", false);
         }
 
         loadYML();
     }
 
+    // Load the updated data.yml
     private void loadYML() {
         ymlConfig = new YamlConfiguration();
         try {
@@ -406,7 +415,21 @@ public final class EconomyPlus extends JavaPlugin {
         }
     }
 
+    // Returns the DatabaseType (MYSQL/H2/YAML/Undefined)
     public static DatabaseType getDBType() {
         return dbType;
     }
+
+    // Returns the StorageMode (NICKNAME/UUID)
+    public static StorageMode getStorageMode() {
+        return storageMode;
+    }
+
+    // Made for /ep convert
+    public void setStorageMode(String newStorageMode) {
+        storageMode = StorageMode.valueOf(newStorageMode);
+        plugin.getConfig().set("Database.Mode", newStorageMode);
+        plugin.saveConfig();
+    }
+
 }

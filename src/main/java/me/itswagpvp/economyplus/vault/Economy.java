@@ -1,54 +1,80 @@
 package me.itswagpvp.economyplus.vault;
 
 import me.itswagpvp.economyplus.EconomyPlus;
-import org.bukkit.entity.Player;
+import me.itswagpvp.economyplus.database.cache.CacheManager;
+import me.itswagpvp.economyplus.database.misc.Selector;
+import me.itswagpvp.economyplus.hooks.events.PlayerBalanceChangeEvent;
+import me.itswagpvp.economyplus.hooks.events.PlayerBankChangeEvent;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.event.Event;
 
 public class Economy extends VEconomy {
 
-    private final Player p;
+    private final OfflinePlayer player;
     private final double money;
 
-    // Constructor
-    public Economy(Player p, double money) {
+    public Economy(OfflinePlayer player, double money) {
         super(EconomyPlus.plugin);
-        this.p = p;
+        this.player = player;
         this.money = money;
     }
 
     // Returns the money of a player
     public double getBalance() {
-        return getBalance(this.p.getName());
+        return super.getBalance(Selector.playerToString(player));
     }
 
-    // Set the money for a player
+    // Set the money of a player
     public void setBalance() {
-        EconomyPlus.getDBType().setTokens(p.getName(), money);
+
+        PlayerBalanceChangeEvent event = new PlayerBalanceChangeEvent(Selector.playerToString(player), money);
+        Bukkit.getPluginManager().callEvent(event);
+
+        if (event.isCancelled()) return;
+
+        CacheManager.getCache(1).put(Selector.playerToString(player), money);
+        EconomyPlus.getDBType().setTokens(Selector.playerToString(player), money);
     }
 
     // Add moneys to a player account
     public void addBalance() {
-        double result = getBalance() + this.money;
-        EconomyPlus.getDBType().setTokens(this.p.getName(), result);
-        super.depositPlayer(this.p.getName(), money);
+        PlayerBalanceChangeEvent event = new PlayerBalanceChangeEvent(Selector.playerToString(player), getBalance() + money);
+        Bukkit.getPluginManager().callEvent(event);
+
+        if (event.isCancelled()) return;
+        super.depositPlayer(Selector.playerToString(player), money);
     }
 
     // Remove moneys from a player's account
     public void takeBalance() {
-        double result = getBalance() - this.money;
-        EconomyPlus.getDBType().setTokens(this.p.getName(), result);
-        super.withdrawPlayer(this.p.getName(), this.money);
+        PlayerBalanceChangeEvent event = new PlayerBalanceChangeEvent(Selector.playerToString(player), getBalance() - money);
+        Bukkit.getPluginManager().callEvent(event);
+
+        if (event.isCancelled()) return;
+        super.withdrawPlayer(Selector.playerToString(player), money);
     }
 
-    public void setBank () {
-        EconomyPlus.getDBType().setBank(this.p.getName(), money);
+    // Set player's bank to the constructor value
+    public void setBank() {
+        PlayerBankChangeEvent event = new PlayerBankChangeEvent(Selector.playerToString(player), money);
+        Bukkit.getPluginManager().callEvent(event);
+
+        if (event.isCancelled()) return;
+        CacheManager.getCache(2).put(Selector.playerToString(player), money);
+        EconomyPlus.getDBType().setBank(Selector.playerToString(player), money);
     }
 
-    public double getBank () {
-        return EconomyPlus.getDBType().getBank(this.p.getName());
+    // Returns the player bank
+    public double getBank() {
+        if (CacheManager.getCache(2).get(Selector.playerToString(player)) == null) {
+            return 0D;
+        }
+        return CacheManager.getCache(2).get(Selector.playerToString(player));
     }
 
     // Controls if the player has enough moneys
     public boolean detractable() {
-        return getBalance() - this.money >= 0;
+        return has(player, money);
     }
 }

@@ -3,9 +3,8 @@ package me.itswagpvp.economyplus.misc;
 import me.itswagpvp.economyplus.EconomyPlus;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
-import org.bukkit.event.EventHandler;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -35,12 +34,11 @@ public class Updater implements Listener {
         if (!enabled) return;
 
         Updater.plugin = plugin;
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
 
         currentVersion = plugin.getDescription().getVersion();
 
         check();
-        Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, this::check, 5 * 60 * 20, (long) 3600 * 20); // Checks for an update every hour
+        Bukkit.getScheduler().scheduleAsyncRepeatingTask(plugin, this::check, 5 * 60 * 20,3600 * 20); // Checks for an update every hour
     }
 
     public void check() {
@@ -75,12 +73,14 @@ public class Updater implements Listener {
                     Bukkit.getConsoleSender().sendMessage("[EconomyPlus] You have §cv" + plugin.getDescription().getVersion());
                     Bukkit.getConsoleSender().sendMessage("[EconomyPlus] Download it with /ep update!");
                 } else if (!ready) {
-                    Bukkit.getLogger().info("[EconomyPlus] You are up to date! §d(v" + latestVersion + ")");
+                    Bukkit.getConsoleSender().sendMessage("[EconomyPlus] You are up to date! §d(v" + latestVersion + ")");
                 }
 
                 ready = true;
             } catch (IOException e) {
-                plugin.getLogger().warning("Unable to check for an update! " + e.getMessage());
+                if (!e.getMessage().contains("HTTP response code: 503")) {
+                    plugin.getLogger().warning("Unable to check for an update! " + e.getMessage());
+                }
             }
         });
     }
@@ -96,11 +96,10 @@ public class Updater implements Listener {
         return instance;
     }
 
-    @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
+    public void checkForPlayerUpdate(Player e) {
         if (!enabled || alreadyDownloaded) return;
         if (ready && updateAvailable && plugin.getConfig().getBoolean("Updater", true)) {
-            if (!e.getPlayer().hasPermission("economyplus.update")) return;
+            if (!e.getPlayer().hasPermission("economyplus.update") || e.getPlayer().isOp()) return;
             e.getPlayer().sendMessage("" +
                     "§7An update is available for §dEconomyPlus§7! " +
                     "\n§7You can download it with §5/ep update");

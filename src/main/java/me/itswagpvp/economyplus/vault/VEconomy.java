@@ -1,11 +1,14 @@
 package me.itswagpvp.economyplus.vault;
 
 import me.itswagpvp.economyplus.EconomyPlus;
+import me.itswagpvp.economyplus.database.cache.CacheManager;
+import me.itswagpvp.economyplus.database.misc.Selector;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.OfflinePlayer;
 
 import java.text.NumberFormat;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -29,12 +32,12 @@ public class VEconomy implements Economy {
 
     @Override
     public boolean hasBankSupport() {
-        return false;
+        return true;
     }
 
     @Override
     public int fractionalDigits() {
-        return 0;
+        return 2;
     }
 
     @Override
@@ -47,12 +50,12 @@ public class VEconomy implements Economy {
 
     @Override
     public String currencyNamePlural() {
-        return "$";
+        return "Dollar";
     }
 
     @Override
     public String currencyNameSingular() {
-        return "$";
+        return "Dollars";
     }
 
     @Override
@@ -62,7 +65,7 @@ public class VEconomy implements Economy {
 
     @Override
     public boolean hasAccount(OfflinePlayer player) {
-        return hasAccount(player.getName());
+        return hasAccount(Selector.playerToString(player));
     }
 
     @Override
@@ -72,17 +75,20 @@ public class VEconomy implements Economy {
 
     @Override
     public boolean hasAccount(OfflinePlayer player, String worldName) {
-        return hasAccount(player.getName());
+        return hasAccount(Selector.playerToString(player));
     }
 
     @Override
     public double getBalance(String playerName) {
-        return EconomyPlus.getDBType().getToken(playerName);
+        if (CacheManager.getCache(1).get(playerName) == null) {
+            return 0D;
+        }
+        return CacheManager.getCache(1).get(playerName);
     }
 
     @Override
     public double getBalance(OfflinePlayer player) {
-        return getBalance(player.getName());
+        return getBalance(Selector.playerToString(player));
     }
 
     @Override
@@ -92,7 +98,7 @@ public class VEconomy implements Economy {
 
     @Override
     public double getBalance(OfflinePlayer player, String world) {
-        return getBalance(player.getName());
+        return getBalance(Selector.playerToString(player));
     }
 
     @Override
@@ -103,7 +109,7 @@ public class VEconomy implements Economy {
 
     @Override
     public boolean has(OfflinePlayer player, double amount) {
-        return has(player.getName(), amount);
+        return has(Selector.playerToString(player), amount);
     }
 
     @Override
@@ -113,19 +119,30 @@ public class VEconomy implements Economy {
 
     @Override
     public boolean has(OfflinePlayer player, String worldName, double amount) {
-        return has(player.getName(), amount);
+        return has(Selector.playerToString(player), amount);
     }
 
     @Override
     public EconomyResponse withdrawPlayer(String playerName, double amount) {
-        double tokens = getBalance(playerName) - amount;
-        EconomyPlus.getDBType().setTokens(playerName, tokens);
+        double tokens = 0D;
+        try {
+            tokens = getBalance(playerName) - amount;
+            if (tokens >= 0) {
+                CacheManager.getCache(1).put(playerName, tokens);
+                EconomyPlus.getDBType().setTokens(playerName, tokens);
+            } else {
+                return new EconomyResponse(amount, tokens, EconomyResponse.ResponseType.FAILURE, "Not enough moneys!");
+            }
+        } catch (Exception e) {
+            return new EconomyResponse(amount, tokens, EconomyResponse.ResponseType.FAILURE, "Error while removing moneys from the player " + playerName);
+        }
+
         return new EconomyResponse(amount, tokens, EconomyResponse.ResponseType.SUCCESS, "Done");
     }
 
     @Override
     public EconomyResponse withdrawPlayer(OfflinePlayer player, double amount) {
-        return withdrawPlayer(player.getName(), amount);
+        return withdrawPlayer(Selector.playerToString(player), amount);
     }
 
     @Override
@@ -135,19 +152,26 @@ public class VEconomy implements Economy {
 
     @Override
     public EconomyResponse withdrawPlayer(OfflinePlayer player, String worldName, double amount) {
-        return withdrawPlayer(player.getName(), amount);
+        return withdrawPlayer(Selector.playerToString(player), amount);
     }
 
     @Override
     public EconomyResponse depositPlayer(String playerName, double amount) {
-        double tokens = getBalance(playerName) + amount;
-        EconomyPlus.getDBType().setTokens(playerName, tokens);
-        return new EconomyResponse(amount, tokens,EconomyResponse.ResponseType.SUCCESS, "Done");
+        double tokens = 0D;
+        try {
+            tokens = getBalance(playerName) + amount;
+            CacheManager.getCache(1).put(playerName, tokens);
+            EconomyPlus.getDBType().setTokens(playerName, tokens);
+        } catch (Exception e) {
+            return new EconomyResponse(amount, tokens, EconomyResponse.ResponseType.FAILURE, "Can't add moneys to the player " + playerName);
+        }
+
+        return new EconomyResponse(amount, tokens, EconomyResponse.ResponseType.SUCCESS, "Action done");
     }
 
     @Override
     public EconomyResponse depositPlayer(OfflinePlayer player, double amount) {
-        return depositPlayer(player.getName(), amount);
+        return depositPlayer(Selector.playerToString(player), amount);
     }
 
     @Override
@@ -157,86 +181,86 @@ public class VEconomy implements Economy {
 
     @Override
     public EconomyResponse depositPlayer(OfflinePlayer player, String worldName, double amount) {
-        return depositPlayer(player.getName(), amount);
+        return depositPlayer(Selector.playerToString(player), amount);
     }
 
     @Override
     public EconomyResponse createBank(String name, String player) {
-        return null;
+        return new EconomyResponse(0, getBalance(player), EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#createBank() is not implemented");
     }
 
     @Override
     public EconomyResponse createBank(String name, OfflinePlayer player) {
-        return null;
+        return new EconomyResponse(0, getBalance(player), EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#createBank() is not implemented");
     }
 
     @Override
     public EconomyResponse deleteBank(String name) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#deleteBank() is not implemented");
     }
 
     @Override
     public EconomyResponse bankBalance(String name) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#bankBalance() is not implemented");
     }
 
     @Override
     public EconomyResponse bankHas(String name, double amount) {
-        return null;
+        return new EconomyResponse(amount, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#bankHas() is not implemented");
     }
 
     @Override
     public EconomyResponse bankWithdraw(String name, double amount) {
-        return null;
+        return new EconomyResponse(amount, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#bankWithdraw() is not implemented");
     }
 
     @Override
     public EconomyResponse bankDeposit(String name, double amount) {
-        return null;
+        return new EconomyResponse(amount, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#bankDeposit() is not implemented");
     }
 
     @Override
     public EconomyResponse isBankOwner(String name, String playerName) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#isBankOwner() is not implemented");
     }
 
     @Override
     public EconomyResponse isBankOwner(String name, OfflinePlayer player) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#isBankOwner() is not implemented");
     }
 
     @Override
     public EconomyResponse isBankMember(String name, String playerName) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#isBankMember() is not implemented");
     }
 
     @Override
     public EconomyResponse isBankMember(String name, OfflinePlayer player) {
-        return null;
+        return new EconomyResponse(0, 0, EconomyResponse.ResponseType.NOT_IMPLEMENTED, "Economy#isBankMember() is not implemented");
     }
 
     @Override
     public List<String> getBanks() {
-        return null;
+        return Collections.emptyList();
     }
 
     @Override
     public boolean createPlayerAccount(String playerName) {
-        return false;
+        return EconomyPlus.getDBType().createPlayer(playerName);
     }
 
     @Override
     public boolean createPlayerAccount(OfflinePlayer player) {
-        return false;
+        return EconomyPlus.getDBType().createPlayer(Selector.playerToString(player));
     }
 
     @Override
     public boolean createPlayerAccount(String playerName, String worldName) {
-        return false;
+        return EconomyPlus.getDBType().createPlayer(playerName);
     }
 
     @Override
     public boolean createPlayerAccount(OfflinePlayer player, String worldName) {
-        return false;
+        return EconomyPlus.getDBType().createPlayer(Selector.playerToString(player));
     }
 }

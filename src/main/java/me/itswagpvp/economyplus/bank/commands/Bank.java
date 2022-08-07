@@ -1,10 +1,11 @@
 package me.itswagpvp.economyplus.bank.commands;
 
-import me.itswagpvp.economyplus.bank.menu.Deposit;
-import me.itswagpvp.economyplus.bank.menu.Withdraw;
+import me.itswagpvp.economyplus.database.misc.Selector;
+import me.itswagpvp.economyplus.hooks.events.PlayerBankChangeEvent;
 import me.itswagpvp.economyplus.misc.Utils;
 import me.itswagpvp.economyplus.vault.Economy;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -19,6 +20,7 @@ public class Bank implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
 
         if (!plugin.getConfig().getBoolean("Bank.Enabled")) {
+
             sender.sendMessage(plugin.getMessage("Bank.Disabled"));
             Utils.playErrorSound(sender);
             return true;
@@ -41,22 +43,6 @@ public class Bank implements CommandExecutor {
                     .replaceAll("%money%", "" + utility.format(bank)));
             Utils.playSuccessSound(sender);
             return true;
-        }
-
-        if (args.length == 1) {
-            if (args[0].equalsIgnoreCase("withdraw")) {
-
-                Withdraw.openMenu(p, 54);
-                Utils.playSuccessSound(p);
-
-            }
-
-            if (args[0].equalsIgnoreCase("deposit")) {
-
-                Deposit.openMenu(p, 54);
-                Utils.playSuccessSound(p);
-
-            }
         }
 
         if (args.length == 2) {

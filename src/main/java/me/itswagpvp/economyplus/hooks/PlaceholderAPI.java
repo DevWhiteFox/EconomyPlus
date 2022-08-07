@@ -2,8 +2,9 @@ package me.itswagpvp.economyplus.hooks;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import me.itswagpvp.economyplus.EconomyPlus;
+import me.itswagpvp.economyplus.database.cache.CacheManager;
+import me.itswagpvp.economyplus.database.misc.Selector;
 import me.itswagpvp.economyplus.misc.Utils;
-import me.itswagpvp.economyplus.vault.Economy;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
@@ -112,26 +113,34 @@ public class PlaceholderAPI extends PlaceholderExpansion {
 
         // %economyplus_money%
         if(identifier.equals("money")){
-            Economy eco = new Economy(player, 0);
-            return new Utils().format(eco.getBalance());
+            if (CacheManager.getCache(1).get(Selector.playerToString(player)) == null) {
+                return new Utils().format(0D);
+            }
+            return new Utils().format(CacheManager.getCache(1).get(Selector.playerToString(player)));
         }
 
         //%economyplus_money_formatted%
         if (identifier.equals("money_formatted")) {
-            Economy eco = new Economy(player, 0);
-            return String.valueOf(utilities.fixMoney(eco.getBalance()));
+            if (CacheManager.getCache(1).get(Selector.playerToString(player)) == null) {
+                return new Utils().fixMoney(0D);
+            }
+            return String.valueOf(utilities.fixMoney(CacheManager.getCache(1).get(Selector.playerToString(player))));
         }
 
         // %economyplus_bank%
         if(identifier.equals("bank")){
-            Economy eco = new Economy(player, 0);
-            return new Utils().format(eco.getBank());
+            if (CacheManager.getCache(2).get(Selector.playerToString(player)) == null) {
+                return new Utils().format(0D);
+            }
+            return new Utils().format(CacheManager.getCache(2).get(Selector.playerToString(player)));
         }
 
         //%economyplus_money_formatted%
         if (identifier.equals("bank_formatted")) {
-            Economy eco = new Economy(player, 0);
-            return String.valueOf(utilities.fixMoney(eco.getBank()));
+            if (CacheManager.getCache(2).get(Selector.playerToString(player)) == null) {
+                return new Utils().fixMoney(0D);
+            }
+            return String.valueOf(utilities.fixMoney(CacheManager.getCache(2).get(Selector.playerToString(player))));
         }
 
         return "Invalid placeholder!";

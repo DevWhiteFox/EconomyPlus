@@ -15,20 +15,23 @@ Version: ${project.version}
 
 # What language file do you want to use?
 # You can select from the file in EconomyPlus/messages folder
-# for now is available EN, IT, RO, AL
+# for now is available EN, IT, RO, AL, DE
 Language: EN
 
 # bStats system (https://bstats.org/plugin/bukkit/EconomyPlus/11565)
 Metrics: true
 
+# It will send to console plugin's internal logs
+Debug-Mode: false
+
 # Controls if EconomyPlus need to connect to another plugin for more features
 Hooks:
   # Placeholders
   PlaceholderAPI: true
-  MVdWPlaceholderAPI: true
   HolographicDisplays: true
 
 # You want to enable the updater?
+# You will receive notifications in game and on the console if you have the permission (economyplus.update)
 Updater: true
 
 # Play to the player the sounds in front of success / error
@@ -62,9 +65,13 @@ Decimals: true
 
 # Baltop configuration
 Baltop:
+  # This will work only with %money% and not with %money_formatted%
+  Pattern:
+    Enabled: false
+    Value: "###.###,##"
   Chat:
-    # Like 1) _ItsWagPvP: 100$
-    Player-Format: "&6%number%) &f%player%: &c%money%$"
+    # Like 1) _ItsWagPvP: $100
+    Player-Format: "&6%number%) &f%player%: &c$%money%"
     # The header of /baltop
     Header:
       - '&8&m-----------------'
@@ -72,9 +79,9 @@ Baltop:
       - '&8&m-----------------'
   # This is for the hologram! (/ep hologram)
   Hologram:
-    # Refresh rate in seconds!
-    Refresh-Rate: 60
-    Player-Format: "&6%number%) &f%player%: &c%money%$"
+    # Refresh rate of holograms!
+    Refresh-Rate: 60 # <- In seconds
+    Player-Format: "&6%number%) &f%player%: &c$%money%"
     Header:
       - '&8&m-----------------'
       - '&d&lBalTop'
@@ -82,11 +89,23 @@ Baltop:
 
 # Select how to storage the data
 Database:
+  # Cache settings for better db performances
+  Cache:
+    # How much frequently the plugin should refresh the cache?
+    # Does not affect player moneys or placeholders
+    # It's only for security purposes
+    # Default: 300 = 5 Minutes
+    Auto-Save: 300 # <- In seconds
+    # How many frequently the cache needs to be
+    # refreshed with the MySQL db?
+    MySQL: 10 # <- In seconds
+  # You can choose one from UUID or NICKNAME
+  Mode: "UUID"
   # H2 (database.db)
   # MySQL
   # YAML (data.yml)
   Type: H2
-  # If you have set Type to H2 you have to ignore this section
+  # If you have set Type to H2 or YAML you have to ignore this options
   # Localhost connection
   Host: localhost
   # Default is 3306
@@ -101,19 +120,20 @@ Database:
   Table: economy
   # If the plugin loses connection it will auto-reconnect to the database
   AutoReconnect: true
+  # Using an SSL certificate?
+  useSSL: false
+
 
 # This is the section where you can customize the /bank command
 Bank:
   # You want to use the bank feature?
   Enabled: true
-  # /bank <withdraw/deposit> section
-  GUI:
-    # The button for confirming the gui withdraw / deposit
-    ConfirmButton: GREEN_STAINED_GLASS_PANE
-    Borders: BLACK_STAINED_GLASS_PANE
-    # /bank withdraw
-    Withdraw:
-      # The title of the GUI
-      Title: "&6&lBank &8> &aWithdraw"
-    Deposit:
-      Title: "&6&lBank &8> &cDeposit"
+  # Interests feature
+  Interests:
+    Enabled: true
+    # How frequently the bank will add the interests?
+    Time: 300 # <- In seconds!
+    # Interest rate (%)
+    Percentage: 10
+    # The player needs to be online to receive the interest?
+    Online-Player: false

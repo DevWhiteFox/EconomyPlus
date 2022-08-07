@@ -1,5 +1,6 @@
 package me.itswagpvp.economyplus.commands;
 
+import me.itswagpvp.economyplus.misc.StorageManager;
 import me.itswagpvp.economyplus.misc.Utils;
 import me.itswagpvp.economyplus.vault.Economy;
 import org.bukkit.Bukkit;
@@ -43,6 +44,12 @@ public class Pay implements CommandExecutor {
             return true;
         }
 
+        if (new StorageManager().getStorageConfig().getBoolean("PayToggle." + target.getName())) {
+            p.sendMessage(plugin.getMessage("Pay.DisabledPayments"));
+            Utils.playErrorSound(p);
+            return true;
+        }
+
         if (target == p) {
             p.sendMessage(plugin.getMessage("Pay.NoSelf"));
             Utils.playErrorSound(p);
@@ -59,6 +66,12 @@ public class Pay implements CommandExecutor {
         try {
             money = Double.parseDouble(args[1]);
         } catch (Exception e) {
+            p.sendMessage(plugin.getMessage("InvalidArgs.Pay"));
+            Utils.playErrorSound(p);
+            return true;
+        }
+
+        if(Double.isNaN(money) || Double.isInfinite(money)) {
             p.sendMessage(plugin.getMessage("InvalidArgs.Pay"));
             Utils.playErrorSound(p);
             return true;

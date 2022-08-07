@@ -1,7 +1,5 @@
-package me.itswagpvp.economyplus.dbStorage.sqlite;
+package me.itswagpvp.economyplus.database.sqlite;
 
-import me.itswagpvp.economyplus.EconomyPlus;
-import me.itswagpvp.economyplus.misc.Logger;
 import org.bukkit.Bukkit;
 
 import java.sql.Connection;
@@ -13,6 +11,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
+
+import static me.itswagpvp.economyplus.EconomyPlus.plugin;
 
 public abstract class Database {
 
@@ -36,7 +36,7 @@ public abstract class Database {
             close(ps,rs);
 
         } catch (SQLException ex) {
-            Logger.getLogger().log(Level.SEVERE, "Unable to retrieve connection", ex);
+            plugin.getLogger().log(Level.SEVERE, "Unable to retrieve connection", ex);
         }
     }
 
@@ -75,7 +75,7 @@ public abstract class Database {
                     }
                 }
             } catch (SQLException ex) {
-                Logger.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
+                plugin.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
             }
             return 0.00;
         });
@@ -91,7 +91,7 @@ public abstract class Database {
 
     // Save the balance to the player's database
     public void setTokens (String player, double tokens) {
-        Bukkit.getScheduler().runTaskAsynchronously(EconomyPlus.plugin, () -> {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Connection conn = getSQLiteConnection();
             try (
                     PreparedStatement ps = conn.prepareStatement("REPLACE INTO " + table + " (player,moneys,bank) VALUES(?,?,?)")
@@ -105,7 +105,7 @@ public abstract class Database {
 
                 ps.executeUpdate();
             } catch (SQLException ex) {
-                Logger.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
+                plugin.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
             }
         });
     }
@@ -125,7 +125,7 @@ public abstract class Database {
                     }
                 }
             } catch (SQLException ex) {
-                Logger.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
+                plugin.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
             }
             return 0.00;
         });
@@ -141,7 +141,7 @@ public abstract class Database {
 
     // Save the balance to the player's database
     public void setBank (String player, double tokens) {
-        Bukkit.getScheduler().runTaskAsynchronously(EconomyPlus.plugin, () -> {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Connection conn = getSQLiteConnection();
             try (
                     PreparedStatement ps = conn.prepareStatement("REPLACE INTO " + table + " (player,moneys,bank) VALUES(?,?,?)")
@@ -155,7 +155,7 @@ public abstract class Database {
 
                 ps.executeUpdate();
             } catch (SQLException ex) {
-                Logger.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
+                plugin.getLogger().log(Level.SEVERE, "Couldn't execute MySQL statement: ", ex);
             }
         });
     }
@@ -190,6 +190,27 @@ public abstract class Database {
         return new ArrayList<>();
     }
 
+    // Remove a user (UUID/NICKNAME) from the database
+    public void removeUser(String user) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Connection conn = getSQLiteConnection();
+            String sql = "DELETE FROM " + table + " where player = '" + user + "'";
+            try {
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.execute();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    // Create a default player
+    public boolean createPlayer(String player) {
+        setTokens(player, plugin.getConfig().getDouble("Starting-Balance"));
+        setBank(player, plugin.getConfig().getDouble("Starting-Bank-Balance"));
+        return true;
+    }
+
     // Closes the database connection
     public void close(PreparedStatement ps, ResultSet rs){
         try {
@@ -198,7 +219,7 @@ public abstract class Database {
             if (rs != null)
                 rs.close();
         } catch (SQLException ex) {
-            Logger.getLogger().log(Level.SEVERE, "Failed to close MySQL connection: ", ex);
+            plugin.getLogger().log(Level.SEVERE, "Failed to close MySQL connection: ", ex);
         }
     }
 }

@@ -1,15 +1,18 @@
 package me.itswagpvp.economyplus.misc;
 
 import me.itswagpvp.economyplus.EconomyPlus;
+import me.itswagpvp.economyplus.database.cache.CacheManager;
+import me.itswagpvp.economyplus.database.misc.StorageMode;
+import org.bukkit.Bukkit;
 
 import java.util.*;
 
-public class Data {
+public class BalTopManager {
 
     public List<PlayerData> balTop;
     public Map<String,PlayerData> balTopName;
 
-    public Data() {
+    public BalTopManager() {
         this.balTop = new ArrayList<>();
         this.balTopName = new TreeMap<>();
         loadFromDatabase();
@@ -20,7 +23,23 @@ public class Data {
 
         for ( String playerName : EconomyPlus.getDBType().getList()) {
 
-            double money = EconomyPlus.getDBType().getToken(playerName);
+            if (EconomyPlus.getStorageMode() == StorageMode.UUID) {
+                String convertedPlayer = Bukkit.getOfflinePlayer(UUID.fromString(playerName)).getName();
+                if (new StorageManager().getStorageConfig().getBoolean("BalTop.Exclude." + convertedPlayer)) {
+                    continue;
+                }
+            } else {
+                if (new StorageManager().getStorageConfig().getBoolean("BalTop.Exclude." + playerName)) {
+                    continue;
+                }
+            }
+
+            double money;
+            if (CacheManager.getCache(1).get(playerName) == null) {
+                money = 0;
+            } else {
+                money = CacheManager.getCache(1).get(playerName);
+            }
 
             PlayerData pData = new PlayerData(playerName, money);
             getBalTop().add( pData );
@@ -65,7 +84,13 @@ public class Data {
         }
 
         public String getName() {
-            return name;
+            if (EconomyPlus.getStorageMode() == StorageMode.NICKNAME) {
+                return name;
+            } else if (EconomyPlus.getStorageMode() == StorageMode.UUID) {
+                if (Bukkit.getServer().getOfflinePlayer(UUID.fromString(name)).getName() == null) return "Invalid User";
+                return Bukkit.getServer().getOfflinePlayer(UUID.fromString(name)).getName();
+            }
+            return "Invalid user";
         }
 
         public double getMoney() {

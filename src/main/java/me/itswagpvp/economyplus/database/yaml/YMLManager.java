@@ -1,9 +1,8 @@
-package me.itswagpvp.economyplus.dbStorage.yml;
+package me.itswagpvp.economyplus.database.yaml;
 
 import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +50,19 @@ public class YMLManager {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             plugin.getYMLData().set("Data." + name + ".bank", value);
             plugin.saveYMLConfig();
+        });
+    }
+
+    public boolean createPlayer(String player) {
+        setTokens(player, plugin.getConfig().getDouble("Starting-Balance"));
+        setBank(player, plugin.getConfig().getDouble("Starting-Bank-Balance"));
+        return true;
+    }
+
+    public void removePlayer(String player) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+           plugin.getYMLData().set("Data." + player, null);
+           plugin.saveYMLConfig();
         });
     }
 
